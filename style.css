@@ -148,10 +148,97 @@ h1 {
   border-radius: 16px;
   border: 1px solid var(--line);
   box-shadow: 0 16px 40px rgba(25, 23, 23, 0.12);
+  cursor: grab;
+  touch-action: none;
+}
+
+#previewCanvas.is-dragging {
+  cursor: grabbing;
 }
 
 .grid-panel {
   overflow: hidden;
+}
+
+.editor-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.control-label {
+  font-weight: 600;
+  color: var(--bg-ink);
+  letter-spacing: 0.02em;
+}
+
+#scaleRange {
+  width: min(320px, 70vw);
+}
+
+#scaleValue {
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+.icon-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(42, 35, 32, 0.16);
+  background: #fff;
+  color: var(--bg-ink);
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.icon-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(25, 23, 23, 0.12);
+}
+
+.primary-button,
+.secondary-button {
+  padding: 0.55rem 1.4rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.primary-button {
+  border: none;
+  color: #fff;
+  background: linear-gradient(120deg, var(--accent), #f2724b);
+  box-shadow: 0 12px 24px rgba(209, 70, 47, 0.28);
+}
+
+.secondary-button {
+  border: 1px solid rgba(42, 35, 32, 0.14);
+  background: #fff;
+  color: var(--bg-ink);
+}
+
+.hint {
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 /* Grid container uses CSS grid to layout 3×3 pieces */
