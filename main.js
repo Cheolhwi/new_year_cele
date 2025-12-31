@@ -3,13 +3,11 @@
  *
  * This script performs the following steps:
  * 1. Wait for the user to upload an image.
- * 2. Load and warm up the BodyPix model (for person segmentation) from the CDN.
- * 3. Segment the person in the uploaded image and create a transparent mask.
- * 4. Compute a bounding box around the person and scale the person to fit
- *    approximately two grid squares (2/3) of the background dimensions.
- * 5. Compose the scaled person onto the New Year background image, centred and
+ * 2. Scale the uploaded image to fit approximately two grid squares (2/3)
+ *    of the background dimensions.
+ * 3. Compose the scaled image onto the New Year background image, centred and
  *    slightly shifted upwards to match the provided example.
- * 6. Slice the composite into nine equal parts along the background’s grid
+ * 4. Slice the composite into nine equal parts along the background’s grid
  *    lines, and create canvas previews with download links for each piece.
  */
 
@@ -20,47 +18,6 @@
   const previewWrapper = document.getElementById('previewWrapper');
   const previewCanvas = document.getElementById('previewCanvas');
   const gridContainer = document.getElementById('gridContainer');
-
-  let modelPromise;
-
-  // Lazy-load BodyPix model
-  async function loadModel() {
-    if (!modelPromise) {
-      statusEl.textContent = 'Loading segmentation model…';
-      // Load BodyPix with MobileNetV1 architecture for small size
-      modelPromise = bodyPix.load({
-        architecture: 'MobileNetV1',
-        outputStride: 16,
-        multiplier: 0.75,
-        quantBytes: 2,
-      });
-    }
-    return modelPromise;
-  }
-
-  // Compute bounding box from a binary alpha mask. Returns {x, y, width, height}
-  function computeBoundingBox(maskImageData) {
-    const { data, width, height } = maskImageData;
-    let minX = width, minY = height, maxX = 0, maxY = 0;
-    let found = false;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const alpha = data[(y * width + x) * 4 + 3];
-        if (alpha > 0) {
-          found = true;
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-        }
-      }
-    }
-    if (!found) {
-      // Default to full image if nothing found
-      return { x: 0, y: 0, width: width, height: height };
-    }
-    return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
-  }
 
   // Main handler for image uploads
   fileInput.addEventListener('change', async (e) => {
@@ -90,46 +47,13 @@
     }
 
     try {
-      // Load model
-      const model = await loadModel();
-      statusEl.textContent = 'Segmenting person…';
-      // Perform segmentation; returns an object with .data array of labels
-      const segmentation = await model.segmentPerson(inputImg, {
-        internalResolution: 'medium',
-        segmentationThreshold: 0.7,
-      });
-      const { data: segData, width: segW, height: segH } = segmentation;
-      // Build a mask image where alpha is 255 for person pixels
-      const maskImageData = new ImageData(segW, segH);
-      for (let i = 0; i < segData.length; i++) {
-        const isPerson = segData[i] === 1;
-        const offset = i * 4;
-        // White pixel
-        maskImageData.data[offset] = 255;
-        maskImageData.data[offset + 1] = 255;
-        maskImageData.data[offset + 2] = 255;
-        maskImageData.data[offset + 3] = isPerson ? 255 : 0;
-      }
-      // Compute bounding box of the mask
-      const bbox = computeBoundingBox(maskImageData);
-      // Prepare offscreen canvas for the person
-      const personCanvas = document.createElement('canvas');
-      personCanvas.width = inputImg.width;
-      personCanvas.height = inputImg.height;
-      const pCtx = personCanvas.getContext('2d');
-      // Draw original image
-      pCtx.drawImage(inputImg, 0, 0);
-      // Draw mask onto a temporary canvas
-      const maskCanvas = document.createElement('canvas');
-      maskCanvas.width = segW;
-      maskCanvas.height = segH;
-      const mCtx = maskCanvas.getContext('2d');
-      mCtx.putImageData(maskImageData, 0, 0);
-      // Use destination-in composite to keep only the person pixels
-      pCtx.globalCompositeOperation = 'destination-in';
-      pCtx.drawImage(maskCanvas, 0, 0, personCanvas.width, personCanvas.height);
-      // Reset composite mode
-      pCtx.globalCompositeOperation = 'source-over';
+      statusEl.textContent = 'Composing image…';
+      const bbox = {
+        x: 0,
+        y: 0,
+        width: inputImg.width,
+        height: inputImg.height,
+      };
 
       // Compose onto background
       const bgW = bgImgEl.naturalWidth;
@@ -155,13 +79,7 @@
       // Shift slightly upward (10% of cell height) to replicate example
       drawY -= cellH * 0.1;
       // Draw scaled person onto composite
-      cCtx.drawImage(
-        personCanvas,
-        drawX,
-        drawY,
-        personCanvas.width * scale,
-        personCanvas.height * scale
-      );
+      cCtx.drawImage(inputImg, drawX, drawY, inputImg.width * scale, inputImg.height * scale);
 
       statusEl.textContent = 'Composed! Generating grid…';
       previewWrapper.style.display = 'block';
