@@ -105,6 +105,25 @@ h1 {
   text-transform: uppercase;
 }
 
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.panel-header .panel-title {
+  margin: 0;
+}
+
+.download-all-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 #controls {
   display: flex;
   flex-direction: column;
