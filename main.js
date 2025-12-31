@@ -159,44 +159,27 @@
     setEditMode();
   };
 
-  const getCanvasPoint = (event) => {
+  const getCanvasPointFromClient = (clientX, clientY) => {
     const rect = previewCanvas.getBoundingClientRect();
     const scaleX = previewCanvas.width / rect.width;
     const scaleY = previewCanvas.height / rect.height;
     return {
-      x: (event.clientX - rect.left) * scaleX,
-      y: (event.clientY - rect.top) * scaleY,
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
     };
   };
 
-  const isPointerOnImage = (point) => {
-    const scale = getScale();
-    const width = state.inputImg.width * scale;
-    const height = state.inputImg.height * scale;
-    return (
-      point.x >= state.imagePos.x &&
-      point.x <= state.imagePos.x + width &&
-      point.y >= state.imagePos.y &&
-      point.y <= state.imagePos.y + height
-    );
-  };
-
-  const startDrag = (event) => {
-    if (!state.inputImg || event.button !== 0) return;
-    const point = getCanvasPoint(event);
-    if (!isPointerOnImage(point)) return;
-
+  const beginDrag = (point, pointerId = null) => {
+    if (!state.inputImg) return;
     dragState.isDragging = true;
-    dragState.pointerId = event.pointerId;
+    dragState.pointerId = pointerId;
     dragState.start = point;
     dragState.origin = { ...state.imagePos };
-    previewCanvas.setPointerCapture(event.pointerId);
     previewCanvas.classList.add('is-dragging');
   };
 
-  const moveDrag = (event) => {
-    if (!dragState.isDragging || dragState.pointerId !== event.pointerId) return;
-    const point = getCanvasPoint(event);
+  const updateDrag = (point) => {
+    if (!dragState.isDragging) return;
     const dx = point.x - dragState.start.x;
     const dy = point.y - dragState.start.y;
     state.imagePos.x = dragState.origin.x + dx;
@@ -205,18 +188,96 @@
     markNeedsGrid();
   };
 
-  const endDrag = (event) => {
-    if (!dragState.isDragging || dragState.pointerId !== event.pointerId) return;
+  const finishDrag = () => {
+    if (!dragState.isDragging) return;
     dragState.isDragging = false;
     dragState.pointerId = null;
-    previewCanvas.releasePointerCapture(event.pointerId);
     previewCanvas.classList.remove('is-dragging');
   };
 
-  previewCanvas.addEventListener('pointerdown', startDrag);
-  previewCanvas.addEventListener('pointermove', moveDrag);
-  previewCanvas.addEventListener('pointerup', endDrag);
-  previewCanvas.addEventListener('pointercancel', endDrag);
+  const supportsPointerEvents = typeof window.PointerEvent !== 'undefined';
+
+  if (supportsPointerEvents) {
+    previewCanvas.addEventListener('pointerdown', (event) => {
+      if (!state.inputImg) return;
+      if (event.button !== undefined && event.button !== 0) return;
+      const point = getCanvasPointFromClient(event.clientX, event.clientY);
+      beginDrag(point, event.pointerId);
+      previewCanvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+
+    previewCanvas.addEventListener('pointermove', (event) => {
+      if (!dragState.isDragging || dragState.pointerId !== event.pointerId) return;
+      const point = getCanvasPointFromClient(event.clientX, event.clientY);
+      updateDrag(point);
+    });
+
+    previewCanvas.addEventListener('pointerup', (event) => {
+      if (!dragState.isDragging || dragState.pointerId !== event.pointerId) return;
+      finishDrag();
+      previewCanvas.releasePointerCapture(event.pointerId);
+    });
+
+    previewCanvas.addEventListener('pointercancel', (event) => {
+      if (!dragState.isDragging || dragState.pointerId !== event.pointerId) return;
+      finishDrag();
+    });
+  } else {
+    previewCanvas.addEventListener('mousedown', (event) => {
+      if (!state.inputImg || event.button !== 0) return;
+      const point = getCanvasPointFromClient(event.clientX, event.clientY);
+      beginDrag(point);
+      event.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (event) => {
+      if (!dragState.isDragging) return;
+      const point = getCanvasPointFromClient(event.clientX, event.clientY);
+      updateDrag(point);
+    });
+
+    window.addEventListener('mouseup', () => {
+      finishDrag();
+    });
+
+    const getTouchById = (touches, id) =>
+      Array.from(touches).find((touch) => touch.identifier === id);
+
+    previewCanvas.addEventListener(
+      'touchstart',
+      (event) => {
+        if (!state.inputImg || event.touches.length === 0) return;
+        const touch = event.touches[0];
+        const point = getCanvasPointFromClient(touch.clientX, touch.clientY);
+        beginDrag(point, touch.identifier);
+        event.preventDefault();
+      },
+      { passive: false }
+    );
+
+    previewCanvas.addEventListener(
+      'touchmove',
+      (event) => {
+        if (!dragState.isDragging) return;
+        const touch =
+          getTouchById(event.touches, dragState.pointerId) || event.touches[0];
+        if (!touch) return;
+        const point = getCanvasPointFromClient(touch.clientX, touch.clientY);
+        updateDrag(point);
+        event.preventDefault();
+      },
+      { passive: false }
+    );
+
+    previewCanvas.addEventListener('touchend', () => {
+      finishDrag();
+    });
+
+    previewCanvas.addEventListener('touchcancel', () => {
+      finishDrag();
+    });
+  }
 
   scaleRange.addEventListener('input', () => {
     updateScale(parseFloat(scaleRange.value));
@@ -338,7 +399,7 @@
       state.initialPos = { x: drawX, y: drawY };
 
       updateScaleUI();
-      previewWrapper.style.display = 'block';
+      previewWrapper.style.display = 'flex';
       renderComposite();
       setEditMode();
     } catch (err) {
