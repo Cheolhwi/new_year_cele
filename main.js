@@ -42,7 +42,18 @@
   let gridDirty = true;
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const encoder = new TextEncoder();
+  const crcTable = (() => {
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) {
+        c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      }
+      table[i] = c >>> 0;
+    }
+    return table;
+  })();
 
   const setStatus = (text) => {
     statusEl.textContent = text;
@@ -55,6 +66,11 @@
 
   const getScale = () => state.baseScale * state.scaleRatio;
 
+  const setDownloadAllState = (visible, enabled) => {
+    downloadAllBtn.classList.toggle('is-hidden', !visible);
+    downloadAllBtn.disabled = !enabled;
+  };
+
   const triggerDownload = (href, filename) => {
     const link = document.createElement('a');
     link.href = href;
@@ -64,25 +80,121 @@
     link.remove();
   };
 
-  const downloadCanvasAsFile = (canvas, filename) =>
+  const downloadBlobAsFile = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    triggerDownload(url, filename);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const dataUrlToBlob = (dataUrl) => {
+    const [header, base64] = dataUrl.split(',');
+    const mimeMatch = header.match(/data:(.*);base64/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mimeType });
+  };
+
+  const canvasToBlob = (canvas) =>
     new Promise((resolve) => {
       if (canvas.toBlob) {
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            resolve(false);
-            return;
-          }
-          const url = URL.createObjectURL(blob);
-          triggerDownload(url, filename);
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-          resolve(true);
-        }, 'image/png');
+        canvas.toBlob((blob) => resolve(blob), 'image/png');
       } else {
-        const url = canvas.toDataURL('image/png');
-        triggerDownload(url, filename);
-        resolve(true);
+        const dataUrl = canvas.toDataURL('image/png');
+        resolve(dataUrlToBlob(dataUrl));
       }
     });
+
+  const blobToUint8 = async (blob) => new Uint8Array(await blob.arrayBuffer());
+
+  const crc32 = (data) => {
+    let crc = 0xffffffff;
+    for (let i = 0; i < data.length; i++) {
+      crc = crcTable[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+
+  const concatUint8Arrays = (chunks) => {
+    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const result = new Uint8Array(total);
+    let offset = 0;
+    chunks.forEach((chunk) => {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    });
+    return result;
+  };
+
+  const buildZip = (entries) => {
+    const localChunks = [];
+    const centralChunks = [];
+    let offset = 0;
+
+    entries.forEach((entry) => {
+      const nameBytes = encoder.encode(entry.name);
+      const data = entry.data;
+      const crc = crc32(data);
+
+      const localHeader = new Uint8Array(30 + nameBytes.length);
+      const localView = new DataView(localHeader.buffer);
+      localView.setUint32(0, 0x04034b50, true);
+      localView.setUint16(4, 20, true);
+      localView.setUint16(6, 0, true);
+      localView.setUint16(8, 0, true);
+      localView.setUint16(10, 0, true);
+      localView.setUint16(12, 0, true);
+      localView.setUint32(14, crc, true);
+      localView.setUint32(18, data.length, true);
+      localView.setUint32(22, data.length, true);
+      localView.setUint16(26, nameBytes.length, true);
+      localView.setUint16(28, 0, true);
+      localHeader.set(nameBytes, 30);
+      localChunks.push(localHeader, data);
+
+      const centralHeader = new Uint8Array(46 + nameBytes.length);
+      const centralView = new DataView(centralHeader.buffer);
+      centralView.setUint32(0, 0x02014b50, true);
+      centralView.setUint16(4, 20, true);
+      centralView.setUint16(6, 20, true);
+      centralView.setUint16(8, 0, true);
+      centralView.setUint16(10, 0, true);
+      centralView.setUint16(12, 0, true);
+      centralView.setUint16(14, 0, true);
+      centralView.setUint32(16, crc, true);
+      centralView.setUint32(20, data.length, true);
+      centralView.setUint32(24, data.length, true);
+      centralView.setUint16(28, nameBytes.length, true);
+      centralView.setUint16(30, 0, true);
+      centralView.setUint16(32, 0, true);
+      centralView.setUint16(34, 0, true);
+      centralView.setUint16(36, 0, true);
+      centralView.setUint32(38, 0, true);
+      centralView.setUint32(42, offset, true);
+      centralHeader.set(nameBytes, 46);
+      centralChunks.push(centralHeader);
+
+      offset += localHeader.length + data.length;
+    });
+
+    const centralDir = concatUint8Arrays(centralChunks);
+    const endRecord = new Uint8Array(22);
+    const endView = new DataView(endRecord.buffer);
+    endView.setUint32(0, 0x06054b50, true);
+    endView.setUint16(4, 0, true);
+    endView.setUint16(6, 0, true);
+    endView.setUint16(8, entries.length, true);
+    endView.setUint16(10, entries.length, true);
+    endView.setUint32(12, centralDir.length, true);
+    endView.setUint32(16, offset, true);
+    endView.setUint16(20, 0, true);
+
+    const zipData = concatUint8Arrays([...localChunks, centralDir, endRecord]);
+    return new Blob([zipData], { type: 'application/zip' });
+  };
 
   const getGridFilename = (canvas, index) => {
     const row = Number.parseInt(canvas.dataset.row, 10);
@@ -132,7 +244,7 @@
 
   const clearGrid = () => {
     gridContainer.innerHTML = '';
-    downloadAllBtn.disabled = true;
+    setDownloadAllState(false, false);
   };
 
   const setEditMode = () => {
@@ -369,7 +481,7 @@
         gridContainer.appendChild(div);
       }
     }
-    downloadAllBtn.disabled = false;
+    setDownloadAllState(true, true);
   };
 
   confirmBtn.addEventListener('click', () => {
@@ -381,28 +493,38 @@
     renderComposite();
     generateGrid();
     gridDirty = false;
-    setStatus('Done! You can download each grid piece or download all.');
+    setStatus('Done! You can download each grid piece or download all as a zip.');
   });
 
   downloadAllBtn.addEventListener('click', async () => {
     const canvases = Array.from(gridContainer.querySelectorAll('canvas'));
-    if (canvases.length === 0) {
+    if (gridDirty || canvases.length === 0) {
       setStatus('Please generate the grid first.');
       return;
     }
     const originalLabel = downloadAllBtn.textContent;
-    downloadAllBtn.disabled = true;
+    setDownloadAllState(true, false);
     downloadAllBtn.textContent = 'Downloading...';
-    setStatus('Downloading 9 pieces...');
+    setStatus('Preparing zip...');
+    const files = [];
     for (let i = 0; i < canvases.length; i++) {
       const canvas = canvases[i];
       const filename = getGridFilename(canvas, i);
-      await downloadCanvasAsFile(canvas, filename);
-      await delay(180);
+      const blob = await canvasToBlob(canvas);
+      if (!blob) {
+        setStatus('Error: Unable to prepare the zip.');
+        downloadAllBtn.textContent = originalLabel;
+        setDownloadAllState(true, true);
+        return;
+      }
+      const data = await blobToUint8(blob);
+      files.push({ name: filename, data });
     }
+    const zipBlob = buildZip(files);
+    downloadBlobAsFile(zipBlob, '9-grid-pieces.zip');
     downloadAllBtn.textContent = originalLabel;
-    downloadAllBtn.disabled = gridDirty || canvases.length === 0;
-    setStatus('All downloads started.');
+    setDownloadAllState(true, true);
+    setStatus('Zip download started.');
   });
 
   fileInput.addEventListener('change', async (event) => {
