@@ -7,22 +7,35 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <h1>9‑Grid Poster Composer</h1>
-    <div id="controls">
-      <input type="file" id="fileInput" accept="image/*" />
-      <p id="status">Please upload an image. The tool will automatically remove the background and compose it onto the grid.</p>
+    <div class="page">
+      <header class="hero">
+        <img class="logo" src="logo.jpg" alt="Logo" />
+        <div class="hero-text">
+          <p class="eyebrow">New Year Poster Studio</p>
+          <h1>9‑Grid Poster Composer</h1>
+          <p class="subhead">Upload a photo, compose it onto the background, and download the 9 tiles.</p>
+        </div>
+      </header>
+      <section class="panel" id="controls">
+        <label class="file-label" for="fileInput">
+          <span>Select an image</span>
+          <input type="file" id="fileInput" accept="image/*" />
+        </label>
+        <p id="status">Please upload an image. The tool will compose it onto the grid.</p>
+      </section>
+      <!-- Hidden background image to measure dimensions -->
+      <img id="backgroundImage" src="background.jpg" alt="Background" style="display:none;" />
+      <!-- Composite preview -->
+      <section class="panel preview-panel" id="previewWrapper" style="display:none;">
+        <div class="panel-title">Composite Preview</div>
+        <canvas id="previewCanvas"></canvas>
+      </section>
+      <!-- Grid pieces will be placed here -->
+      <section class="panel grid-panel">
+        <div class="panel-title">9‑Grid Pieces</div>
+        <div id="gridContainer"></div>
+      </section>
     </div>
-    <!-- Hidden background image to measure dimensions -->
-    <img id="backgroundImage" src="background.jpg" alt="Background" style="display:none;" />
-    <!-- Composite preview -->
-    <div id="previewWrapper" style="display:none;">
-      <canvas id="previewCanvas"></canvas>
-    </div>
-    <!-- Grid pieces will be placed here -->
-    <div id="gridContainer"></div>
-    <!-- TensorFlow.js & BodyPix -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.0/dist/body-pix.min.js"></script>
     <script src="main.js"></script>
   </body>
 </html>
