@@ -3,10 +3,9 @@
  *
  * This script performs the following steps:
  * 1. Wait for the user to upload an image.
- * 2. Scale the uploaded image to fit approximately two grid squares (2/3)
- *    of the background dimensions.
- * 3. Compose the scaled image onto the New Year background image, centred and
- *    slightly shifted upwards to match the provided example.
+ * 2. Scale the uploaded image to fit within the background dimensions.
+ * 3. Compose the scaled image onto the New Year background image, centered
+ *    horizontally and aligned to the background bottom.
  * 4. Slice the composite into nine equal parts along the background’s grid
  *    lines, and create canvas previews with download links for each piece.
  */
@@ -64,20 +63,18 @@
       // Draw background first
       cCtx.drawImage(bgImgEl, 0, 0, bgW, bgH);
 
-      // Compute target size for the person: limit to two grid squares
+      // Compute target size: fit within the full background while preserving aspect
       const cellW = bgW / 3;
       const cellH = bgH / 3;
-      const maxPersonW = cellW * 2;
-      const maxPersonH = cellH * 2;
+      const maxPersonW = bgW;
+      const maxPersonH = bgH;
       const scale = Math.min(maxPersonW / bbox.width, maxPersonH / bbox.height);
       // Compute scaled bounding box centre
       const bboxCenterX = (bbox.x + bbox.width / 2) * scale;
       const bboxCenterY = (bbox.y + bbox.height / 2) * scale;
-      // Target centre of person: centre of canvas
-      let drawX = bgW / 2 - bboxCenterX;
-      let drawY = bgH / 2 - bboxCenterY;
-      // Shift slightly upward (10% of cell height) to replicate example
-      drawY -= cellH * 0.1;
+      // Center horizontally, align bottom to the background bottom
+      let drawX = (bgW - bbox.width * scale) / 2 - bbox.x * scale;
+      let drawY = bgH - bbox.height * scale - bbox.y * scale;
       // Draw scaled person onto composite
       cCtx.drawImage(inputImg, drawX, drawY, inputImg.width * scale, inputImg.height * scale);
 
