@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>9‑Grid Poster</title>
+    <title>9‑Grid Poster Composer</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -46,7 +46,12 @@
       </section>
       <!-- Grid pieces will be placed here -->
       <section class="panel grid-panel">
-        <div class="panel-title">9‑Grid Pieces</div>
+        <div class="panel-header">
+          <div class="panel-title">9‑Grid Pieces</div>
+          <button type="button" class="secondary-button download-all-button" id="downloadAll" disabled>
+            Download all
+          </button>
+        </div>
         <div id="gridContainer"></div>
       </section>
     </div>
