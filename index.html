@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>9‑Grid Poster Composer</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h1>9‑Grid Poster Composer</h1>
+    <div id="controls">
+      <input type="file" id="fileInput" accept="image/*" />
+      <p id="status">Please upload an image. The tool will automatically remove the background and compose it onto the grid.</p>
+    </div>
+    <!-- Hidden background image to measure dimensions -->
+    <img id="backgroundImage" src="background.jpg" alt="Background" style="display:none;" />
+    <!-- Composite preview -->
+    <div id="previewWrapper" style="display:none;">
+      <canvas id="previewCanvas"></canvas>
+    </div>
+    <!-- Grid pieces will be placed here -->
+    <div id="gridContainer"></div>
+    <!-- TensorFlow.js & BodyPix -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.2.0/dist/body-pix.min.js"></script>
+    <script src="main.js"></script>
+  </body>
+</html>
