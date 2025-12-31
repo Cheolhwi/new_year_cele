@@ -21,6 +21,7 @@
   const zoomInBtn = document.getElementById('zoomIn');
   const resetBtn = document.getElementById('resetPosition');
   const confirmBtn = document.getElementById('confirmGrid');
+  const downloadAllBtn = document.getElementById('downloadAll');
 
   const state = {
     inputImg: null,
@@ -41,6 +42,7 @@
   let gridDirty = true;
 
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const setStatus = (text) => {
     statusEl.textContent = text;
@@ -52,6 +54,43 @@
   });
 
   const getScale = () => state.baseScale * state.scaleRatio;
+
+  const triggerDownload = (href, filename) => {
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const downloadCanvasAsFile = (canvas, filename) =>
+    new Promise((resolve) => {
+      if (canvas.toBlob) {
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            resolve(false);
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          triggerDownload(url, filename);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          resolve(true);
+        }, 'image/png');
+      } else {
+        const url = canvas.toDataURL('image/png');
+        triggerDownload(url, filename);
+        resolve(true);
+      }
+    });
+
+  const getGridFilename = (canvas, index) => {
+    const row = Number.parseInt(canvas.dataset.row, 10);
+    const col = Number.parseInt(canvas.dataset.col, 10);
+    const safeRow = Number.isFinite(row) ? row : Math.floor(index / 3);
+    const safeCol = Number.isFinite(col) ? col : index % 3;
+    return `piece_${safeRow}_${safeCol}.png`;
+  };
 
   const getOpaqueBoundingBox = (image, alphaThreshold = 8) => {
     const tempCanvas = document.createElement('canvas');
@@ -93,6 +132,7 @@
 
   const clearGrid = () => {
     gridContainer.innerHTML = '';
+    downloadAllBtn.disabled = true;
   };
 
   const setEditMode = () => {
@@ -303,6 +343,8 @@
         const pieceCanvas = document.createElement('canvas');
         pieceCanvas.width = cellW;
         pieceCanvas.height = cellH;
+        pieceCanvas.dataset.row = row;
+        pieceCanvas.dataset.col = col;
         const pcCtx = pieceCanvas.getContext('2d');
         pcCtx.drawImage(
           previewCanvas,
@@ -327,6 +369,7 @@
         gridContainer.appendChild(div);
       }
     }
+    downloadAllBtn.disabled = false;
   };
 
   confirmBtn.addEventListener('click', () => {
@@ -338,7 +381,28 @@
     renderComposite();
     generateGrid();
     gridDirty = false;
-    setStatus('Done! You can download each grid piece.');
+    setStatus('Done! You can download each grid piece or download all.');
+  });
+
+  downloadAllBtn.addEventListener('click', async () => {
+    const canvases = Array.from(gridContainer.querySelectorAll('canvas'));
+    if (canvases.length === 0) {
+      setStatus('Please generate the grid first.');
+      return;
+    }
+    const originalLabel = downloadAllBtn.textContent;
+    downloadAllBtn.disabled = true;
+    downloadAllBtn.textContent = 'Downloading...';
+    setStatus('Downloading 9 pieces...');
+    for (let i = 0; i < canvases.length; i++) {
+      const canvas = canvases[i];
+      const filename = getGridFilename(canvas, i);
+      await downloadCanvasAsFile(canvas, filename);
+      await delay(180);
+    }
+    downloadAllBtn.textContent = originalLabel;
+    downloadAllBtn.disabled = gridDirty || canvases.length === 0;
+    setStatus('All downloads started.');
   });
 
   fileInput.addEventListener('change', async (event) => {
