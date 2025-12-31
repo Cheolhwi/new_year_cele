@@ -124,6 +124,10 @@ h1 {
   box-shadow: none;
 }
 
+.download-all-button.is-hidden {
+  display: none;
+}
+
 #controls {
   display: flex;
   flex-direction: column;
