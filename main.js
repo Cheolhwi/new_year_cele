@@ -91,11 +91,11 @@
       // Draw background first
       cCtx.drawImage(bgImgEl, 0, 0, bgW, bgH);
 
-      // Compute target size: fit within the full background while preserving aspect
+      // Compute target size: fit within two grid cells while preserving aspect
       const cellW = bgW / 3;
       const cellH = bgH / 3;
-      const maxPersonW = bgW;
-      const maxPersonH = bgH;
+      const maxPersonW = cellW * 2;
+      const maxPersonH = cellH * 2;
       const scale = Math.min(maxPersonW / bbox.width, maxPersonH / bbox.height);
       // Center horizontally, align bottom to the background bottom
       let drawX = (bgW - bbox.width * scale) / 2 - bbox.x * scale;
