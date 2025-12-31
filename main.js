@@ -18,6 +18,39 @@
   const previewCanvas = document.getElementById('previewCanvas');
   const gridContainer = document.getElementById('gridContainer');
 
+  const getOpaqueBoundingBox = (image, alphaThreshold = 8) => {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = image.width;
+    tempCanvas.height = image.height;
+    const tCtx = tempCanvas.getContext('2d');
+    tCtx.drawImage(image, 0, 0);
+    const { data } = tCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    let minX = tempCanvas.width;
+    let minY = tempCanvas.height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < tempCanvas.height; y++) {
+      for (let x = 0; x < tempCanvas.width; x++) {
+        const idx = (y * tempCanvas.width + x) * 4;
+        if (data[idx + 3] > alphaThreshold) {
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX === -1 || maxY === -1) {
+      return { x: 0, y: 0, width: image.width, height: image.height };
+    }
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX + 1,
+      height: maxY - minY + 1,
+    };
+  };
+
   // Main handler for image uploads
   fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -47,12 +80,7 @@
 
     try {
       statusEl.textContent = 'Composing image…';
-      const bbox = {
-        x: 0,
-        y: 0,
-        width: inputImg.width,
-        height: inputImg.height,
-      };
+      const bbox = getOpaqueBoundingBox(inputImg);
 
       // Compose onto background
       const bgW = bgImgEl.naturalWidth;
@@ -69,9 +97,6 @@
       const maxPersonW = bgW;
       const maxPersonH = bgH;
       const scale = Math.min(maxPersonW / bbox.width, maxPersonH / bbox.height);
-      // Compute scaled bounding box centre
-      const bboxCenterX = (bbox.x + bbox.width / 2) * scale;
-      const bboxCenterY = (bbox.y + bbox.height / 2) * scale;
       // Center horizontally, align bottom to the background bottom
       let drawX = (bgW - bbox.width * scale) / 2 - bbox.x * scale;
       let drawY = bgH - bbox.height * scale - bbox.y * scale;
